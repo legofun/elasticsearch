@@ -73,8 +73,12 @@ func (client *esClient) SetMatchAllQuery() {
 }
 
 //设置折叠条件
-func (client *esClient) SetCollapse(innerHitName, field string, size int) {
+func (client *esClient) SetCollapse(innerHitName, field string, size int, sorter []elastic.Sorter) {
 	innerHit := elastic.NewInnerHit().Name(innerHitName).Size(size)
+
+	if len(sorter) > 0 {
+		innerHit.SortBy(sorter...)
+	}
 
 	client.collapse = elastic.NewCollapseBuilder(field).InnerHit(innerHit)
 }
@@ -132,6 +136,10 @@ func (client *esClient) Delete(indexName, id string) error {
 }
 
 func (client *esClient) Bulk(data []elastic.BulkableRequest) error {
+	if len(data) == 0 {
+		return errors.New("no bulk data")
+	}
+
 	bulkRequest := client.c.Bulk()
 
 	for _, v := range data {
