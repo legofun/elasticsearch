@@ -85,7 +85,6 @@ func (client *esClient) SetOrQuery(name string, values interface{}, args ...inte
 //设置折叠条件
 func (client *esClient) SetCollapse(innerHitName, field string, size int) {
 	innerHit := elastic.NewInnerHit().Name(innerHitName).Size(size)
-
 	if len(client.collapseSortBy) > 0 {
 		innerHit.SortBy(client.collapseSortBy...)
 	}
