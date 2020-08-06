@@ -7,8 +7,8 @@ import (
 )
 
 type product struct {
-	ProductName   string  `json:"product_name"`   //商品名称
-	ProductId     int32   `json:"product_id"`     //商品id
+	ProductName string `json:"product_name"` //商品名称
+	ProductId   int32  `json:"product_id"`   //商品id
 }
 
 var indexName = "channel_product"
@@ -29,15 +29,15 @@ func TestSave(t *testing.T) {
 				index: indexName,
 				id:    "CX0013_1000068",
 				data: product{
-					ProductId:     1000068,
-					ProductName:   "阿闻爱佳前置仓商品01",
+					ProductId:   1000068,
+					ProductName: "阿闻爱佳前置仓商品01",
 				},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			es,err := NewEsClient()
+			es, err := NewEsClient()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -65,9 +65,7 @@ func TestSearch(t *testing.T) {
 		{
 			name: "T3",
 			args: args{
-				index: indexName,
-				//q:     elastic.NewBoolQuery().Must([]elastic.Query{elastic.NewMatchQuery("_id", "CX0013_1000756")}...),
-				//q:         elastic.NewMatchAllQuery(),
+				index:     indexName,
 				pageIndex: 1,
 				pageSize:  1,
 			},
@@ -75,7 +73,7 @@ func TestSearch(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			es,err := NewEsClient()
+			es, err := NewEsClient()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -116,7 +114,7 @@ func TestDelete(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			es,err := NewEsClient()
+			es, err := NewEsClient()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -146,13 +144,13 @@ func TestBulk(t *testing.T) {
 				data: []elastic.BulkableRequest{
 					//修改
 					elastic.NewBulkIndexRequest().Index(indexName).Id("RP0009_1000005").Doc(product{
-						ProductId:     1000005,
-						ProductName:   "东瓜1",
+						ProductId:   1000005,
+						ProductName: "东瓜1",
 					}),
 					//新建
 					elastic.NewBulkIndexRequest().Index(indexName).Id("CX0013_1000002").Doc(product{
-						ProductId:     1000012,
-						ProductName:   "测试商品C010101005",
+						ProductId:   1000012,
+						ProductName: "测试商品C010101005",
 					}),
 					////删除
 					//elastic.NewBulkDeleteRequest().Index(indexName).Id("1000000"),
@@ -168,7 +166,7 @@ func TestBulk(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			es,err := NewEsClient()
+			es, err := NewEsClient()
 			if err != nil {
 				t.Fatal(err)
 			}
