@@ -78,8 +78,8 @@ func TestSearch(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			es.SetMatchAllQuery()
-			res, err := es.Search(tt.args.index, tt.args.pageIndex, tt.args.pageSize)
+			es.SetQuery("", []interface{}{})
+			res, err := es.Search(tt.args.index, tt.args.pageIndex, tt.args.pageSize, []elastic.Sorter{})
 			if err != nil {
 				t.Error(err)
 				return

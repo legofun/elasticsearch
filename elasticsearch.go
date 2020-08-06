@@ -11,14 +11,18 @@ import (
 
 var client *elastic.Client
 
+type sorter interface {
+	Source() (interface{}, error)
+}
+
 type esClient struct {
-	c              *elastic.Client
-	ctx            context.Context
-	querys         []elastic.Query
-	orQuerys       []elastic.Query
-	sortBy         []elastic.Sorter
-	collapse       *elastic.CollapseBuilder
-	collapseSortBy []elastic.Sorter
+	c         *elastic.Client
+	ctx       context.Context
+	boolQuery *elastic.BoolQuery
+	query     elastic.Query
+	querys    []elastic.Query
+	orQuerys  []elastic.Query
+	collapse  *elastic.CollapseBuilder
 }
 
 func NewEsClient() (*esClient, error) {
@@ -59,54 +63,56 @@ func (client *esClient) SetTimeout(timeout time.Duration) {
 	client.ctx, _ = context.WithTimeout(client.ctx, timeout)
 }
 
-//单字段单条件查询
-func (client *esClient) SetMatchQuery(name string, values interface{}) {
-	client.querys = append(client.querys, elastic.NewMatchQuery(name, values))
+//设置must查询条件
+func (client *esClient) SetQuery(name string, values []interface{}) {
+	if len(values) == 0 { //不带条件查询，返回全部数据
+		client.querys = append(client.querys, elastic.NewMatchAllQuery())
+	} else if len(values) == 1 { //单字段单条件查询
+		client.querys = append(client.querys, elastic.NewMatchQuery(name, values[0]))
+	} else { //单字段多条件查询，类似sql里的in
+		client.querys = append(client.querys, elastic.NewTermsQuery(name, values...))
+	}
 }
 
-//单字段多条件查询，类似sql里的in
-func (client *esClient) SetTermsQuery(name string, values []interface{}) {
-	client.querys = append(client.querys, elastic.NewTermsQuery(name, values...))
-}
+//设置should查询条件
+//args[0]：是否忽略TF/IDF,1是0否
+//args[1]：权重值
+func (client *esClient) SetOrQuery(name string, values interface{}, args ...interface{}) {
+	if len(args) > 0 && args[0] == 1 {
+		client.query = elastic.NewConstantScoreQuery(elastic.NewMatchQuery(name, values))
+	} else {
+		client.query = elastic.NewMatchQuery(name, values)
+	}
 
-//不带条件查询，返回全部数据
-func (client *esClient) SetMatchAllQuery() {
-	client.querys = append(client.querys, elastic.NewMatchAllQuery())
+	if len(args) > 1 {
+		client.setBoost(cast.ToFloat64(args[1]))
+	}
+
+	client.orQuerys = append(client.orQuerys, client.query)
 }
 
 //设置查询权重
-func (client *esClient) SetOrQuery(name string, values interface{}, args ...interface{}) {
-	q := elastic.NewMatchQuery(name, values)
-	if len(args) > 0 {
-		q = q.Boost(cast.ToFloat64(args[0]))
+func (client *esClient) setBoost(boost float64) {
+	switch client.query.(type) {
+	case *elastic.MatchQuery:
+		client.query.(*elastic.MatchQuery).Boost(boost)
+	case *elastic.ConstantScoreQuery:
+		client.query.(*elastic.ConstantScoreQuery).Boost(boost)
 	}
-	client.orQuerys = append(client.orQuerys, q)
 }
 
 //设置折叠条件
-func (client *esClient) SetCollapse(innerHitName, field string, size int) {
+func (client *esClient) SetCollapse(innerHitName, field string, size int, sort []elastic.Sorter) {
 	innerHit := elastic.NewInnerHit().Name(innerHitName).Size(size)
-	if len(client.collapseSortBy) > 0 {
-		innerHit.SortBy(client.collapseSortBy...)
+	if len(sort) > 0 {
+		innerHit.SortBy(sort...)
 	}
 
 	client.collapse = elastic.NewCollapseBuilder(field).InnerHit(innerHit)
 }
 
-//设置折叠排序条件
-func (client *esClient) SetCollapseSortBy(field string, ascending bool) {
-	sorter := elastic.NewFieldSort(field)
-	if ascending {
-		sorter = sorter.Asc()
-	} else {
-		sorter = sorter.Desc()
-	}
-
-	client.collapseSortBy = append(client.collapseSortBy, sorter)
-}
-
 //设置排序条件
-func (client *esClient) SetSortBy(field string, ascending bool) {
+func (client *esClient) SetSortBy(field string, ascending bool) elastic.Sorter {
 	sorter := elastic.NewFieldSort(field)
 	if ascending {
 		sorter = sorter.Asc()
@@ -114,19 +120,18 @@ func (client *esClient) SetSortBy(field string, ascending bool) {
 		sorter = sorter.Desc()
 	}
 
-	client.sortBy = append(client.sortBy, sorter)
+	return sorter
 }
 
 //设置geo距离排序条件
 //latLon 坐标经纬度，纬度在前
-func (client *esClient) SetGeoDistanceSort(fieldName, latLon, unit string, ascending bool) {
+func (client *esClient) SetGeoDistanceSortBy(fieldName, latLon, unit string, ascending bool) elastic.Sorter {
 	pointStr, _ := elastic.GeoPointFromString(latLon)
-	sorter := elastic.NewGeoDistanceSort(fieldName).Points(pointStr).Unit(unit).Order(ascending)
-	client.sortBy = append(client.sortBy, sorter)
+	return elastic.NewGeoDistanceSort(fieldName).Points(pointStr).Unit(unit).Order(ascending)
 }
 
 //搜索
-func (client *esClient) Search(indexName string, pageIndex, pageSize int) (*elastic.SearchResult, error) {
+func (client *esClient) Search(indexName string, pageIndex, pageSize int, sort []elastic.Sorter) (*elastic.SearchResult, error) {
 	if pageIndex <= 0 {
 		pageIndex = 1
 	}
@@ -134,21 +139,21 @@ func (client *esClient) Search(indexName string, pageIndex, pageSize int) (*elas
 		pageIndex = 10
 	}
 
-	boolQuery := elastic.NewBoolQuery()
+	client.boolQuery = elastic.NewBoolQuery()
 	if len(client.querys) > 0 {
-		boolQuery = elastic.NewBoolQuery().Must(client.querys...)
+		client.boolQuery.Must(client.querys...)
 	}
 	if len(client.orQuerys) > 0 {
-		boolQuery = boolQuery.Should(client.orQuerys...)
+		client.boolQuery.Should(client.orQuerys...)
 	}
 
-	ss := client.c.Search().Index(indexName).Query(boolQuery)
+	ss := client.c.Search().Index(indexName).Query(client.boolQuery)
 
 	if client.collapse != nil {
 		ss = ss.Collapse(client.collapse)
 	}
-	if len(client.sortBy) > 0 {
-		for _, s := range client.sortBy {
+	if len(sort) > 0 {
+		for _, s := range sort {
 			ss = ss.SortBy(s)
 		}
 	}
