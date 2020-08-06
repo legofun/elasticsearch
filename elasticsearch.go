@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/limitedlee/microservice/common/config"
 	"github.com/olivere/elastic/v7"
+	"github.com/spf13/cast"
 	"time"
 )
 
@@ -77,7 +78,7 @@ func (client *esClient) SetMatchAllQuery() {
 func (client *esClient) SetOrQuery(name string, values interface{}, args ...interface{}) {
 	q := elastic.NewMatchQuery(name, values)
 	if len(args) > 0 {
-		q = q.Boost(args[0].(float64))
+		q = q.Boost(cast.ToFloat64(args[0]))
 	}
 	client.orQuerys = append(client.orQuerys, q)
 }
