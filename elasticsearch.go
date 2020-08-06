@@ -11,12 +11,13 @@ import (
 var client *elastic.Client
 
 type esClient struct {
-	c        *elastic.Client
-	ctx      context.Context
-	query    elastic.Query
-	querys   []elastic.Query
-	collapse *elastic.CollapseBuilder
-	sortBy   []elastic.Sorter
+	c              *elastic.Client
+	ctx            context.Context
+	querys         []elastic.Query
+	orQuerys       []elastic.Query
+	sortBy         []elastic.Sorter
+	collapse       *elastic.CollapseBuilder
+	collapseSortBy []elastic.Sorter
 }
 
 func NewEsClient() (*esClient, error) {
@@ -72,18 +73,52 @@ func (client *esClient) SetMatchAllQuery() {
 	client.querys = append(client.querys, elastic.NewMatchAllQuery())
 }
 
+//设置查询权重
+func (client *esClient) SetOrQuery(name string, values interface{}, args ...interface{}) {
+	q := elastic.NewMatchQuery(name, values)
+	if len(args) > 0 {
+		q = q.Boost(args[0].(float64))
+	}
+	client.orQuerys = append(client.orQuerys, q)
+}
+
 //设置折叠条件
-func (client *esClient) SetCollapse(innerHitName, field string, size int, sorter []elastic.Sorter) {
+func (client *esClient) SetCollapse(innerHitName, field string, size int) {
 	innerHit := elastic.NewInnerHit().Name(innerHitName).Size(size)
 
-	if len(sorter) > 0 {
-		innerHit.SortBy(sorter...)
+	if len(client.collapseSortBy) > 0 {
+		innerHit.SortBy(client.collapseSortBy...)
 	}
 
 	client.collapse = elastic.NewCollapseBuilder(field).InnerHit(innerHit)
 }
 
+//设置折叠排序条件
+func (client *esClient) SetCollapseSortBy(field string, ascending bool) {
+	sorter := elastic.NewFieldSort(field)
+	if ascending {
+		sorter = sorter.Asc()
+	} else {
+		sorter = sorter.Desc()
+	}
+
+	client.collapseSortBy = append(client.collapseSortBy, sorter)
+}
+
 //设置排序条件
+func (client *esClient) SetSortBy(field string, ascending bool) {
+	sorter := elastic.NewFieldSort(field)
+	if ascending {
+		sorter = sorter.Asc()
+	} else {
+		sorter = sorter.Desc()
+	}
+
+	client.sortBy = append(client.sortBy, sorter)
+}
+
+//设置geo距离排序条件
+//latLon 坐标经纬度，纬度在前
 func (client *esClient) SetGeoDistanceSort(fieldName, latLon, unit string, ascending bool) {
 	pointStr, _ := elastic.GeoPointFromString(latLon)
 	sorter := elastic.NewGeoDistanceSort(fieldName).Points(pointStr).Unit(unit).Order(ascending)
@@ -99,8 +134,15 @@ func (client *esClient) Search(indexName string, pageIndex, pageSize int) (*elas
 		pageIndex = 10
 	}
 
-	client.query = elastic.NewBoolQuery().Must(client.querys...)
-	ss := client.c.Search().Index(indexName).Query(client.query)
+	boolQuery := elastic.NewBoolQuery()
+	if len(client.querys) > 0 {
+		boolQuery = elastic.NewBoolQuery().Must(client.querys...)
+	}
+	if len(client.orQuerys) > 0 {
+		boolQuery = boolQuery.Should(client.orQuerys...)
+	}
+
+	ss := client.c.Search().Index(indexName).Query(boolQuery)
 
 	if client.collapse != nil {
 		ss = ss.Collapse(client.collapse)
@@ -119,6 +161,7 @@ func (client *esClient) Search(indexName string, pageIndex, pageSize int) (*elas
 	return res, nil
 }
 
+//删除
 func (client *esClient) Delete(indexName, id string) error {
 	doc, err := client.c.Delete().
 		Index(indexName).
@@ -135,6 +178,7 @@ func (client *esClient) Delete(indexName, id string) error {
 	return nil
 }
 
+//批量操作
 func (client *esClient) Bulk(data []elastic.BulkableRequest) error {
 	if len(data) == 0 {
 		return errors.New("no bulk data")
@@ -160,8 +204,8 @@ func (client *esClient) Bulk(data []elastic.BulkableRequest) error {
 	return nil
 }
 
+//保存
 func (client *esClient) Save(indexName, id string, data interface{}) error {
-	// 写入
 	_, err := client.c.Index().
 		Index(indexName).
 		Id(id).
