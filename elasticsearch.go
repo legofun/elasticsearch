@@ -9,12 +9,6 @@ import (
 	"time"
 )
 
-var client *elastic.Client
-
-type sorter interface {
-	Source() (interface{}, error)
-}
-
 type esClient struct {
 	c         *elastic.Client
 	ctx       context.Context
@@ -30,19 +24,7 @@ func NewEsClient() (*esClient, error) {
 	uname := config.GetString("elasticsearch.LoginName")
 	passwd := config.GetString("elasticsearch.Password")
 
-	if client != nil {
-		_, code, err := client.Ping(host).Do(context.Background())
-		//链接已存在直接返回
-		if err == nil && code == 200 {
-			return &esClient{
-				c:   client,
-				ctx: context.Background(),
-			}, nil
-		}
-		//log.Printf("Elasticsearch returned with code %d and version %s\n", code)
-	}
-
-	//链接不存在，创建
+	//创建连接
 	client, err := elastic.NewClient(
 		elastic.SetSniff(false),
 		elastic.SetURL(host),
