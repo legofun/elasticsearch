@@ -31,7 +31,7 @@ func NewEsClient() (*esClient, error) {
 		elastic.SetBasicAuth(uname, passwd),
 	)
 	if err != nil {
-		return nil, err
+		return nil, newEsError(err)
 	}
 
 	return &esClient{
@@ -142,7 +142,7 @@ func (client *esClient) Search(indexName string, pageIndex, pageSize int, sort [
 
 	res, err := ss.From(pageIndex - 1).Size(pageSize).Pretty(true).Do(client.ctx)
 	if err != nil {
-		return nil, err
+		return nil, newEsError(err)
 	}
 
 	return res, nil
@@ -156,10 +156,10 @@ func (client *esClient) Delete(indexName, id string) error {
 		Refresh("wait_for").
 		Do(client.ctx)
 	if err != nil {
-		return err
+		return newEsError(err)
 	}
 	if doc.Result != "deleted" {
-		return errors.New("删除失败")
+		return newEsError(errors.New("删除失败"))
 	}
 
 	return nil
@@ -181,7 +181,7 @@ func (client *esClient) Bulk(data []elastic.BulkableRequest) error {
 		Refresh("wait_for").
 		Do(client.ctx)
 	if err != nil {
-		return err
+		return newEsError(err)
 	}
 
 	//if bulkRequest.NumberOfActions() == 0 {
@@ -200,7 +200,7 @@ func (client *esClient) Save(indexName, id string, data interface{}) error {
 		Refresh("wait_for").
 		Do(client.ctx)
 	if err != nil {
-		return err
+		return newEsError(err)
 	}
 
 	return nil
