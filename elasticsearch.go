@@ -26,6 +26,7 @@ func NewEsClient() (*esClient, error) {
 
 	//创建连接
 	client, err := elastic.NewClient(
+		elastic.SetHealthcheck(false),
 		elastic.SetSniff(false),
 		elastic.SetURL(host),
 		elastic.SetBasicAuth(uname, passwd),
@@ -45,7 +46,7 @@ func (client *esClient) SetTimeout(timeout time.Duration) {
 	client.ctx, _ = context.WithTimeout(client.ctx, timeout)
 }
 
-//设置must查询条件
+//设置must查询条件（类似sql里的and）
 func (client *esClient) SetQuery(name string, values []interface{}) {
 	if len(values) == 0 { //不带条件查询，返回全部数据
 		client.querys = append(client.querys, elastic.NewMatchAllQuery())
@@ -56,7 +57,7 @@ func (client *esClient) SetQuery(name string, values []interface{}) {
 	}
 }
 
-//设置should查询条件
+//设置should查询条件（类似sql里的or）
 //args[0]：是否忽略TF/IDF,1是0否
 //args[1]：权重值
 func (client *esClient) SetOrQuery(name string, values interface{}, args ...interface{}) {
