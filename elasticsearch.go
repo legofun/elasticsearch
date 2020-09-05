@@ -141,7 +141,7 @@ func (client *esClient) Search(indexName string, pageIndex, pageSize int, sort [
 		}
 	}
 
-	res, err := ss.From(pageIndex - 1).Size(pageSize).Pretty(true).Do(client.ctx)
+	res, err := ss.From((pageIndex - 1) * pageSize).Size(pageSize).Pretty(true).Do(client.ctx)
 	if err != nil {
 		return nil, newEsError(err)
 	}
