@@ -142,16 +142,17 @@ func TestBulk(t *testing.T) {
 			name: "T1",
 			args: args{
 				data: []elastic.BulkableRequest{
-					//修改
-					elastic.NewBulkIndexRequest().Index(indexName).Id("RP0009_1000005").Doc(product{
-						ProductId:   1000005,
-						ProductName: "东瓜1",
-					}),
-					//新建
-					elastic.NewBulkIndexRequest().Index(indexName).Id("CX0013_1000002").Doc(product{
-						ProductId:   1000012,
-						ProductName: "测试商品C010101005",
-					}),
+					elastic.NewBulkIndexRequest().Index(indexName).Id("YC0127_1000083"),
+					////修改
+					//elastic.NewBulkIndexRequest().Index(indexName).Id("RP0009_1000005").Doc(product{
+					//	ProductId:   1000005,
+					//	ProductName: "东瓜1",
+					//}),
+					////新建
+					//elastic.NewBulkIndexRequest().Index(indexName).Id("CX0013_1000002").Doc(product{
+					//	ProductId:   1000012,
+					//	ProductName: "测试商品C010101005",
+					//}),
 					////删除
 					//elastic.NewBulkDeleteRequest().Index(indexName).Id("1000000"),
 					////修改
@@ -171,13 +172,57 @@ func TestBulk(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			err = es.Bulk(tt.args.data)
+			res, err := es.Bulk(tt.args.data)
 			if err != nil {
 				t.Fatal(err)
 				return
+			}
+
+			for _, v := range res.Items {
+				t.Logf("%#v", v["index"])
 			}
 		})
 	}
 
 	t.Log("bulk ok")
+}
+
+func Test_esClient_MgetById(t *testing.T) {
+	type args struct {
+		m map[string][]string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *elastic.MgetResponse
+		wantErr bool
+	}{
+		{
+			name: "通过id批量查询",
+			args: args{
+				m: map[string][]string{
+					"channel_product": {"CX0004_1019418", "CX0004_10194181"},
+				},
+			},
+			want:    &elastic.MgetResponse{},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			es, err := NewEsClient()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			got, err := es.MgetById(tt.args.m)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("MgetById() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("MgetById() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
