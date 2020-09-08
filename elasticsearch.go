@@ -152,7 +152,7 @@ func (client *esClient) Search(indexName string, pageIndex, pageSize int, sort [
 //通过id批量查询
 func (client *esClient) MgetById(m map[string][]string) (*elastic.MgetResponse, error) {
 	if len(m) == 0 {
-		return nil, errors.New("no mget data")
+		return nil, newEsError(errors.New("no mget data"))
 	}
 
 	cap := 0
@@ -190,9 +190,9 @@ func (client *esClient) Delete(indexName, id string) error {
 }
 
 //批量操作
-func (client *esClient) Bulk(data []elastic.BulkableRequest) (*elastic.BulkResponse, error) {
+func (client *esClient) Bulk(data []elastic.BulkableRequest) error {
 	if len(data) == 0 {
-		return nil, errors.New("no bulk data")
+		return newEsError(errors.New("no bulk data"))
 	}
 
 	bulkRequest := client.c.Bulk()
@@ -201,18 +201,18 @@ func (client *esClient) Bulk(data []elastic.BulkableRequest) (*elastic.BulkRespo
 		bulkRequest = bulkRequest.Add(v)
 	}
 
-	res, err := bulkRequest.
+	_, err := bulkRequest.
 		Refresh("wait_for").
 		Do(client.ctx)
 	if err != nil {
-		return nil, newEsError(err)
+		return newEsError(err)
 	}
 
 	//if bulkRequest.NumberOfActions() == 0 {
 	//	glog.Infof("Actions all clear!")
 	//}
 
-	return res, nil
+	return nil
 }
 
 //保存
