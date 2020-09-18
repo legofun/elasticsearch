@@ -172,14 +172,10 @@ func TestBulk(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			res, err := es.Bulk(tt.args.data)
+			err = es.Bulk(tt.args.data)
 			if err != nil {
 				t.Fatal(err)
 				return
-			}
-
-			for _, v := range res.Items {
-				t.Logf("%#v", v["index"])
 			}
 		})
 	}

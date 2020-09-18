@@ -141,6 +141,9 @@ func (client *esClient) Search(indexName string, pageIndex, pageSize int, sort [
 		}
 	}
 
+	//设置读取真实总数
+	ss.TrackTotalHits(true)
+
 	res, err := ss.From((pageIndex - 1) * pageSize).Size(pageSize).Pretty(true).Do(client.ctx)
 	if err != nil {
 		return nil, newEsError(err)
